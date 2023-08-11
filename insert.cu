@@ -30,7 +30,7 @@ __global__ void Insert_Elem(volatile int *heap,volatile int *d_elements,int *cur
                     heap[parInd] = heap[childInd];
                     heap[childInd] = temp;
                     lockArr[childInd] = 0; //unlock the child
-                    __threadfence();
+                    // __threadfence();
                     // printf("x");
                     // printf("value after swap ThreadId = %d, childId = %d, parInd = %d, childval = %d, parVal = %d\n",tid,childInd,parInd,heap[childInd],heap[parInd]);
                     childInd = parInd;
@@ -118,7 +118,7 @@ int main() {
         int elements[*elemSize];
         // int elements[elemSize] = {19,14,1,34,12,89,2,30};
         FillArray(elements,*elemSize);
-        printf("Inserted Elements are = %d\n",*elemSize);
+        printf("No of Inserted Elements are = %d\n",*elemSize);
         // printArray(elements,elemSize);
 
         int *d_elements;
@@ -128,10 +128,10 @@ int main() {
         cudaMemset(lockArr,0,(*elemSize + *curSize)*sizeof(int));
         setLockVar<<<1,1>>>(lockArr);
         cudaDeviceSynchronize();
-        // int block = ceil((float) *elemSize/1024);
+        int block = ceil((float) *elemSize/1024);
 
-        // Insert_Elem<<<block,1024>>>(d_a,d_elements,curSize,lockArr,elemSize);
-        Insert_Elem<<<*elemSize,1>>>(d_a,d_elements,curSize,lockArr,elemSize);
+        Insert_Elem<<<block,1024>>>(d_a,d_elements,curSize,lockArr,elemSize);
+        // Insert_Elem<<<*elemSize,1>>>(d_a,d_elements,curSize,lockArr,elemSize);
         // Insert_Elem<<<1,*elemSize>>>(d_a,d_elements,curSize,lockArr,elemSize);
         cudaDeviceSynchronize();
         
@@ -142,6 +142,6 @@ int main() {
         if(checkHeap(h_a,*curSize)) countvalid++;
     }
     cudaDeviceSynchronize();
-    printf("\nvalid : %d",countvalid);
+    printf("Valid Test Cases: %d",countvalid);
     return 0;
 }
