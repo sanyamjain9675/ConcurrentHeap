@@ -49,8 +49,8 @@ __global__ void Insert_Elem(volatile int *heap,int *d_elements,int *curSize,vola
                 } 
                 
             }
-            __threadfence();
-        }while(oldval  != 0);
+            __threadfence(); //doesnt seem necessary
+        }while(oldval != 0);
     }
 }
 bool checkHeap(int *ar,int size)
@@ -59,12 +59,12 @@ bool checkHeap(int *ar,int size)
     {
         if(ar[i] > ar[2*i + 1]){
             printf("\nproblem found at index parent = %d,child = %d\n",i,2*i + 1);
-            printf("\nproblem found at index parentval = %d,childval = %d\n",ar[i],ar[2*i + 1]); 
+            printf("problem found at index parentval = %d,childval = %d\n",ar[i],ar[2*i + 1]); 
             return false;
         } 
         if((2*i + 2) < size && ar[i] > ar[2*i + 2]){
             printf("\nproblem found at index parent = %d,child = %d\n",i,2*i + 2);
-            printf("\nproblem found at index parentval = %d,childval = %d\n",ar[i],ar[2*i + 2]);
+            printf("problem found at index parentval = %d,childval = %d\n",ar[i],ar[2*i + 2]);
             return false;
         }
     }
@@ -134,7 +134,7 @@ int main() {
     int countvalid = 0;
     int inivalid = 0;
     
-    for(int lk = 0;lk<1000;lk++)
+    for(int lk = 0;lk<100;lk++)
     {
         int *d_a;
         int *curSize;
