@@ -49,7 +49,7 @@ __global__ void Insert_Elem(volatile int *heap,int *d_elements,int *curSize,vola
                 } 
                 
             }
-            __threadfence(); //doesnt seem necessary
+            // __threadfence(); //doesnt seem necessary
         }while(oldval != 0);
     }
 }
@@ -129,6 +129,19 @@ __global__ void setLockVar(int *curSize,int *lockArr,int *elemSize)
         lockArr[tid + *curSize] = 1;
 }
 
+double rtclock(){
+    struct timezone Tzp;
+    struct timeval Tp;
+    int stat;
+    stat = gettimeofday(&Tp, &Tzp);
+    if (stat != 0) printf("Error return from gettimeofday: %d", stat);
+    return(Tp.tv_sec + Tp.tv_usec * 1.0e-6);
+}
+
+void printtime(const char *str, double starttime, double endtime){
+    printf("%s%3f seconds\n", str, endtime - starttime);
+}
+
 int main() {
     srand(time(0));
     int countvalid = 0;
@@ -162,35 +175,31 @@ int main() {
         int elements[*elemSize];
         
         FillArray(elements,*elemSize);
-        printf("%d. No of Inserted Elements are = %d, ",inivalid,*elemSize);
+        printf("%d. No of Inserted Elements are = %d\n",inivalid,*elemSize);
 
         int *d_elements;
         cudaMalloc(&d_elements,*elemSize*sizeof(int));
         cudaMemcpy(d_elements,elements,*elemSize * sizeof(int),cudaMemcpyHostToDevice);
         cudaMalloc(&lockArr,(*elemSize + *curSize)*sizeof(int));
         cudaMemset(lockArr,0,(*elemSize + *curSize)*sizeof(int));
-        
-       
+    
         int block = ceil((float) *elemSize/1024);
 
+        double starttime = rtclock(); 
         setLockVar<<<block,1024>>>(curSize,lockArr,elemSize);
         cudaDeviceSynchronize();
         Insert_Elem<<<block,1024>>>(d_a,d_elements,curSize,lockArr,elemSize);
-        // Insert_Elem<<<*elemSize,1>>>(d_a,d_elements,curSize,lockArr,elemSize);
-        // Insert_Elem<<<1,*elemSize>>>(d_a,d_elements,curSize,lockArr,elemSize);
         cudaDeviceSynchronize();
-        
+        double endtime = rtclock();  
+        printtime("GPU Kernel time: ", starttime, endtime);
         cudaMemcpy(h_a,d_a,maxSize*sizeof(int),cudaMemcpyDeviceToHost);
-        // printf("\nHeap is :");
-        // printArray(h_a,*curSize);
-        // printf("\n\n\n");
         
         if(checkHeap(h_a,*curSize)) {
-            printf("Valid\n");
+            // printf("Valid\n");
             countvalid++;
         }
     }
-    printf("\nIni valid : %d",inivalid);
+    printf("\nInitial valid : %d",inivalid);
     printf("\nvalid : %d\n\n",countvalid);
     return 0;
 }
