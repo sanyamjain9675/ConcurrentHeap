@@ -6,7 +6,8 @@
 #include <time.h>
 
 //total size of the heap
-#define maxSize 1000000
+#define maxSize 5
+#define range 100
 
 __global__ void Insert_Elem(volatile int *heap,int *d_elements,int *curSize,volatile int *lockArr,int *elemSize){
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -72,9 +73,10 @@ __global__ void Del_Elem(volatile int *heap,int *curSize,volatile int *lockArr,i
                 if(count == 0)
                 {
                     printf("%d, ",heap[parInd]);
-                    heap[parInd] = heap[childInd];
+                    heap[parInd] = heap[childInd-1];
+                    __threadfence();//necessary
                 }
-                if(level - 2 >= 0) //release the lock before 2 levels
+                if((level - 2) >= 0) //release the lock before 2 levels
                 {
                     lockArr[level-2] = 0;
                 }
@@ -99,7 +101,7 @@ __global__ void Del_Elem(volatile int *heap,int *curSize,volatile int *lockArr,i
                     if(largeInd == -1) //that means no longer need to go down
                     {
                         lockArr[level] = 0; //release current level lock
-                        if(level-1 >= 0) lockArr[level-1] = 0; //release previous level lock
+                        if((level-1) >= 0) lockArr[level-1] = 0; //release previous level lock
                     }
                     else
                     {
@@ -107,7 +109,7 @@ __global__ void Del_Elem(volatile int *heap,int *curSize,volatile int *lockArr,i
                         heap[parInd] = heap[largeInd];
                         heap[largeInd] = temp;
 
-                        // __threadfence();//necessary
+                        __threadfence();//necessary
         
                         parInd = largeInd;
                         oldval = 1; //we need to heapify again 
@@ -157,7 +159,7 @@ void FillArray(int elements[],int size)
 {
     for(int i = 0;i<size;i++)
     {
-        elements[i] = getRandom(1,1000);
+        elements[i] = getRandom(1,range);
     }
 }
     
@@ -220,7 +222,7 @@ int main() {
     int countvalid = 0;
     int inivalid = 0;
     
-    for(int lk = 0;lk<100;lk++)
+    for(int lk = 0;lk<1;lk++)
     {
         int *d_a;
         int *curSize;
@@ -233,13 +235,17 @@ int main() {
         cudaHostAlloc(&newSize, sizeof(int), 0);
 
         int h_a[maxSize];
-        *curSize = getRandom(1,maxSize/10);
+        *curSize = getRandom(1,maxSize);
 
         //Initialise Heap with some random values
         FillArray(h_a,*curSize);
 
        //heapify the heap
         buildHeap(h_a,*curSize);
+
+        printf("Initially the array is ");
+        printArray(h_a,*curSize);
+        printf("\n");
 
        //check if satisfies the heap property
         if(checkHeap(h_a,*curSize)) inivalid++;
@@ -261,6 +267,10 @@ int main() {
         double endtime = rtclock();  
         printtime("GPU Kernel time: ", starttime, endtime);
         cudaMemcpy(h_a,d_a,maxSize*sizeof(int),cudaMemcpyDeviceToHost);
+        
+        printf("After Deletion the array is ");
+        printArray(h_a,*curSize);
+        printf("\n");
         
         if(checkHeap(h_a,*curSize)) {
             // printf("Valid\n");
