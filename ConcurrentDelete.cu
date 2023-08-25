@@ -6,7 +6,7 @@
 #include <time.h>
 
 //total size of the heap
-#define maxSize 5
+#define maxSize 10
 #define range 100
 
 __global__ void Insert_Elem(volatile int *heap,int *d_elements,int *curSize,volatile int *lockArr,int *elemSize){
@@ -56,7 +56,7 @@ __global__ void Insert_Elem(volatile int *heap,int *d_elements,int *curSize,vola
 }
 
 //talking about min heap
-__global__ void Del_Elem(volatile int *heap,int *curSize,volatile int *lockArr,int *elemSize,int *newSize){
+__global__ void Del_Elem(volatile int *heap,volatile int *curSize,volatile int *lockArr,volatile int *elemSize,volatile int *newSize){
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     int count = 0;
     int level = 0;
@@ -64,7 +64,6 @@ __global__ void Del_Elem(volatile int *heap,int *curSize,volatile int *lockArr,i
     {
         int parInd = 0;
         int oldval = 1;
-        int childInd = atomicDec((unsigned *) curSize,maxSize+10);
         do
         {
             oldval = atomicCAS((int*)&lockArr[level],0,1);
@@ -72,8 +71,11 @@ __global__ void Del_Elem(volatile int *heap,int *curSize,volatile int *lockArr,i
             {
                 if(count == 0)
                 {
+                    int childInd = atomicDec((unsigned *) curSize,maxSize+10);
                     printf("%d, ",heap[parInd]);
+                    // printf("Root Value before del = %d,%d, ",heap[parInd],childInd);
                     heap[parInd] = heap[childInd-1];
+                    // printf("Root Value after del = %d\n",heap[parInd]);
                     __threadfence();//necessary
                 }
                 if((level - 2) >= 0) //release the lock before 2 levels
@@ -86,15 +88,15 @@ __global__ void Del_Elem(volatile int *heap,int *curSize,volatile int *lockArr,i
 
                 int largeInd = -1;
 
-                if(leftChild < *newSize)
+                if(leftChild < *curSize)
                 {   
-                    if(rightChild < *newSize && heap[parInd] > heap[rightChild]){
+                    if(rightChild < *curSize && heap[parInd] > heap[rightChild]){
                         if(heap[leftChild] < heap[rightChild])
                             largeInd = leftChild;
                         else
                             largeInd = rightChild;
                     }
-                    else if(leftChild < *newSize && heap[parInd] > heap[leftChild]){
+                    else if(leftChild < *curSize && heap[parInd] > heap[leftChild]){
                         largeInd = leftChild;
                     }
         
@@ -105,23 +107,26 @@ __global__ void Del_Elem(volatile int *heap,int *curSize,volatile int *lockArr,i
                     }
                     else
                     {
+                        // printf("value before swap : %d,%d\n",heap[parInd],heap[largeInd]);
                         int temp = heap[largeInd];    //swapping the elements
-                        heap[parInd] = heap[largeInd];
-                        heap[largeInd] = temp;
+                        heap[largeInd] = heap[parInd];
+                        heap[parInd] = temp;
 
                         __threadfence();//necessary
+
+                        // printf("value after swap : %d,%d\n",heap[parInd],heap[largeInd]);
         
                         parInd = largeInd;
                         oldval = 1; //we need to heapify again 
-                        level++;
+                        level = level+1;
                     }
                 }
                 else //if heap property satisfied release the locks
                 {
                     lockArr[level] = 0; //release current level lock
-                    if(level-1 >= 0) lockArr[level-1] = 0; //release previous level lock
+                    if((level-1) >= 0) lockArr[level-1] = 0; //release previous level lock
                 } 
-                count++;
+                count = count + 1;
             }
             // __threadfence(); //doesnt seem necessary
         }while(oldval != 0);
@@ -222,7 +227,7 @@ int main() {
     int countvalid = 0;
     int inivalid = 0;
     
-    for(int lk = 0;lk<1;lk++)
+    for(int lk = 0;lk<100;lk++)
     {
         int *d_a;
         int *curSize;
@@ -235,7 +240,7 @@ int main() {
         cudaHostAlloc(&newSize, sizeof(int), 0);
 
         int h_a[maxSize];
-        *curSize = getRandom(1,maxSize);
+        *curSize = getRandom(9,maxSize);
 
         //Initialise Heap with some random values
         FillArray(h_a,*curSize);
@@ -243,9 +248,9 @@ int main() {
        //heapify the heap
         buildHeap(h_a,*curSize);
 
-        printf("Initially the array is ");
+        printf("%d. Initially the array is ",inivalid);
         printArray(h_a,*curSize);
-        printf("\n");
+        printf("\nElements Deleted are ");
 
        //check if satisfies the heap property
         if(checkHeap(h_a,*curSize)) inivalid++;
@@ -253,7 +258,7 @@ int main() {
         cudaMalloc(&d_a,maxSize*sizeof(int)); 
         cudaMemcpy(d_a,h_a,maxSize * sizeof(int),cudaMemcpyHostToDevice);
 
-        *elemSize = getRandom(1,*curSize-2);
+        *elemSize = getRandom(1,*curSize);
         *newSize = *curSize - *elemSize;
 
         cudaMalloc(&lockArr,(*curSize)*sizeof(int));
@@ -263,14 +268,15 @@ int main() {
 
         double starttime = rtclock(); 
         Del_Elem<<<block,1024>>>(d_a,curSize,lockArr,elemSize,newSize);
+        // Del_Elem<<<*elemSize,1>>>(d_a,curSize,lockArr,elemSize,newSize);
         cudaDeviceSynchronize();
         double endtime = rtclock();  
-        printtime("GPU Kernel time: ", starttime, endtime);
+        //printtime("GPU Kernel time: ", starttime, endtime);
         cudaMemcpy(h_a,d_a,maxSize*sizeof(int),cudaMemcpyDeviceToHost);
         
-        printf("After Deletion the array is ");
+        printf("\nAfter Deletion the array is ");
         printArray(h_a,*curSize);
-        printf("\n");
+        printf("\n\n");
         
         if(checkHeap(h_a,*curSize)) {
             // printf("Valid\n");
