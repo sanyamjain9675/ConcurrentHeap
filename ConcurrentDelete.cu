@@ -4,59 +4,20 @@
 #include <bits/stdc++.h>
 #include <fstream>
 #include <time.h>
+#include <algorithm>
+
+__device__ int globind = 0;
 
 //total size of the heap
-#define maxSize 10
-#define range 100
+#define maxSize 32
+#define range 1024
 
-__global__ void Insert_Elem(volatile int *heap,int *d_elements,int *curSize,volatile int *lockArr,int *elemSize){
-    int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    if(tid < *elemSize)
-    {
-        int childInd = atomicInc((unsigned *) curSize,maxSize+10);
-        heap[childInd] = d_elements[tid];
-
-        int parInd = (childInd-1)/2;
-        int oldval = 1;
-        do
-        {
-            oldval = atomicCAS((int*)&lockArr[parInd],0,1);
-            if(oldval == 0) //if we got the lock on parent
-            {
-                if(heap[parInd] > heap[childInd])
-                {
-                    int temp = heap[parInd];    //swapping the elements
-                    heap[parInd] = heap[childInd];
-                    heap[childInd] = temp;
-
-                    __threadfence();//necessary
-
-                    lockArr[childInd] = 0; //unlock the child
-    
-                    childInd = parInd;
-                    parInd = (childInd-1)/2;
-                    oldval = 1; //we need to heapify again
-
-                    //if we have reached the root
-                    if(childInd == 0){
-                        oldval = 0; //we need not heapify again
-                        lockArr[childInd] = 0;
-                    }  
-                }
-                else //if heap property satisfied release the locks
-                {
-                    lockArr[childInd] = 0;
-                    lockArr[parInd] = 0;
-                } 
-                
-            }
-            // __threadfence(); //doesnt seem necessary
-        }while(oldval != 0);
-    }
+__global__ void init()
+{
+    globind = 0;
 }
 
-//talking about min heap
-__global__ void Del_Elem(volatile int *heap,volatile int *curSize,volatile int *lockArr,volatile int *elemSize,volatile int *newSize){
+__global__ void Del_Elem(volatile int *heap,volatile int *curSize,volatile int *lockArr,volatile int *elemSize,volatile int *newSize,int *d_delElem){
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     int count = 0;
     int level = 0;
@@ -72,7 +33,8 @@ __global__ void Del_Elem(volatile int *heap,volatile int *curSize,volatile int *
                 if(count == 0)
                 {
                     int childInd = atomicDec((unsigned *) curSize,maxSize+10);
-                    printf("%d, ",heap[parInd]);
+                    d_delElem[globind] = heap[parInd];
+                    globind++;
                     // printf("Root Value before del = %d,%d, ",heap[parInd],childInd);
                     heap[parInd] = heap[childInd-1];
                     // printf("Root Value after del = %d\n",heap[parInd]);
@@ -128,7 +90,7 @@ __global__ void Del_Elem(volatile int *heap,volatile int *curSize,volatile int *
                 } 
                 count = count + 1;
             }
-            // __threadfence(); //doesnt seem necessary
+            __threadfence(); //doesnt seem necessary
         }while(oldval != 0);
     }
 }
@@ -166,8 +128,7 @@ void FillArray(int elements[],int size)
     {
         elements[i] = getRandom(1,range);
     }
-}
-    
+}    
 void heapify(int hp[],int ind,int size)
 {
     while(1)
@@ -193,7 +154,82 @@ void heapify(int hp[],int ind,int size)
     }
 
 }
-
+void merge(int array[], int const left, int const mid,
+           int const right)
+{
+    int const subArrayOne = mid - left + 1;
+    int const subArrayTwo = right - mid;
+ 
+    // Create temp arrays
+    auto *leftArray = new int[subArrayOne],
+         *rightArray = new int[subArrayTwo];
+ 
+    // Copy data to temp arrays leftArray[] and rightArray[]
+    for (auto i = 0; i < subArrayOne; i++)
+        leftArray[i] = array[left + i];
+    for (auto j = 0; j < subArrayTwo; j++)
+        rightArray[j] = array[mid + 1 + j];
+ 
+    auto indexOfSubArrayOne = 0, indexOfSubArrayTwo = 0;
+    int indexOfMergedArray = left;
+ 
+    // Merge the temp arrays back into array[left..right]
+    while (indexOfSubArrayOne < subArrayOne
+           && indexOfSubArrayTwo < subArrayTwo) {
+        if (leftArray[indexOfSubArrayOne]
+            <= rightArray[indexOfSubArrayTwo]) {
+            array[indexOfMergedArray]
+                = leftArray[indexOfSubArrayOne];
+            indexOfSubArrayOne++;
+        }
+        else {
+            array[indexOfMergedArray]
+                = rightArray[indexOfSubArrayTwo];
+            indexOfSubArrayTwo++;
+        }
+        indexOfMergedArray++;
+    }
+ 
+    // Copy the remaining elements of
+    // left[], if there are any
+    while (indexOfSubArrayOne < subArrayOne) {
+        array[indexOfMergedArray]
+            = leftArray[indexOfSubArrayOne];
+        indexOfSubArrayOne++;
+        indexOfMergedArray++;
+    }
+ 
+    // Copy the remaining elements of
+    // right[], if there are any
+    while (indexOfSubArrayTwo < subArrayTwo) {
+        array[indexOfMergedArray]
+            = rightArray[indexOfSubArrayTwo];
+        indexOfSubArrayTwo++;
+        indexOfMergedArray++;
+    }
+    delete[] leftArray;
+    delete[] rightArray;
+}
+ 
+void mergeSort(int array[], int const begin, int const end)
+{
+    if (begin >= end)
+        return;
+ 
+    int mid = begin + (end - begin) / 2;
+    mergeSort(array, begin, mid);
+    mergeSort(array, mid + 1, end);
+    merge(array, begin, mid, end);
+}
+bool compareVal(int arr1[],int n1,int arr2[],int n2)
+{
+    mergeSort(arr2,0,n2-1);
+    for(int i = 0;i<n1;i++)
+    {
+        if(arr1[i] != arr2[i])  return false;
+    }
+    return true;
+}
 void buildHeap(int hp[],int n)
 {
     for(int i = n/2 -1 ; i>=0;i--)
@@ -234,6 +270,8 @@ int main() {
         int *lockArr;
         int *elemSize;
         int *newSize;
+        int *d_delElem;
+        
 
         cudaHostAlloc(&curSize, sizeof(int), 0);
         cudaHostAlloc(&elemSize, sizeof(int), 0);
@@ -241,6 +279,7 @@ int main() {
 
         int h_a[maxSize];
         *curSize = getRandom(9,maxSize);
+        int saveSize = *curSize;
 
         //Initialise Heap with some random values
         FillArray(h_a,*curSize);
@@ -250,7 +289,7 @@ int main() {
 
         printf("%d. Initially the array is ",inivalid);
         printArray(h_a,*curSize);
-        printf("\nElements Deleted are ");
+        printf("\n");
 
        //check if satisfies the heap property
         if(checkHeap(h_a,*curSize)) inivalid++;
@@ -258,27 +297,38 @@ int main() {
         cudaMalloc(&d_a,maxSize*sizeof(int)); 
         cudaMemcpy(d_a,h_a,maxSize * sizeof(int),cudaMemcpyHostToDevice);
 
-        *elemSize = getRandom(1,*curSize);
+        *elemSize = getRandom(*curSize,*curSize);
+        int delElem[*elemSize];
+        printf("No of elements to be deleted = %d, ",*elemSize);
         *newSize = *curSize - *elemSize;
 
+        cudaMalloc(&d_delElem,(*elemSize)*sizeof(int));
         cudaMalloc(&lockArr,(*curSize)*sizeof(int));
         cudaMemset(lockArr,0,(*curSize)*sizeof(int));
     
         int block = ceil((float) *elemSize/1024);
 
-        double starttime = rtclock(); 
-        Del_Elem<<<block,1024>>>(d_a,curSize,lockArr,elemSize,newSize);
+        double starttime = rtclock();
+        init<<<1,1>>>(); 
+        Del_Elem<<<block,1024>>>(d_a,curSize,lockArr,elemSize,newSize,d_delElem);
         // Del_Elem<<<*elemSize,1>>>(d_a,curSize,lockArr,elemSize,newSize);
         cudaDeviceSynchronize();
         double endtime = rtclock();  
-        //printtime("GPU Kernel time: ", starttime, endtime);
+        printtime("Time: ", starttime, endtime);
+
+        cudaMemcpy(delElem,d_delElem,*elemSize*sizeof(int),cudaMemcpyDeviceToHost);
+        printf("Elements Deleted are ");
+        printArray(delElem,*elemSize);
+        printf("\n\n");
+
+        bool res = compareVal(delElem,*elemSize,h_a,saveSize);
         cudaMemcpy(h_a,d_a,maxSize*sizeof(int),cudaMemcpyDeviceToHost);
         
-        printf("\nAfter Deletion the array is ");
-        printArray(h_a,*curSize);
-        printf("\n\n");
+        // printf("\nAfter Deletion the array is ");
+        // printArray(h_a,*curSize);
+        // printf("\n\n");
         
-        if(checkHeap(h_a,*curSize)) {
+        if(checkHeap(h_a,*curSize) && res) {
             // printf("Valid\n");
             countvalid++;
         }
