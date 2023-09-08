@@ -8,51 +8,6 @@
 #define maxSize 10000
 omp_lock_t lock[maxSize];
 
-// __global__ void Insert_Elem(volatile int *heap,int *d_elements,int *curSize,volatile int *lockArr,int *elemSize){
-//     int tid = blockIdx.x * blockDim.x + threadIdx.x;
-//     if(tid < *elemSize)
-//     {
-//         int childInd = atomicInc((unsigned *) curSize,maxSize+10);
-//         heap[childInd] = d_elements[tid];
-
-//         int parInd = (childInd-1)/2;
-//         int oldval = 1;
-//         do
-//         {
-//             oldval = atomicCAS((int*)&lockArr[parInd],0,1);
-//             if(oldval == 0) //if we got the lock on parent
-//             {
-//                 if(heap[parInd] > heap[childInd])
-//                 {
-//                     int temp = heap[parInd];    //swapping the elements
-//                     heap[parInd] = heap[childInd];
-//                     heap[childInd] = temp;
-
-//                     __threadfence();//necessary
-
-//                     lockArr[childInd] = 0; //unlock the child
-    
-//                     childInd = parInd;
-//                     parInd = (childInd-1)/2;
-//                     oldval = 1; //we need to heapify again
-
-//                     //if we have reached the root
-//                     if(childInd == 0){
-//                         oldval = 0; //we need not heapify again
-//                         lockArr[childInd] = 0;
-//                     }  
-//                 }
-//                 else //if heap property satisfied release the locks
-//                 {
-//                     lockArr[childInd] = 0;
-//                     lockArr[parInd] = 0;
-//                 } 
-                
-//             }
-//             // __threadfence(); //doesnt seem necessary
-//         }while(oldval != 0);
-//     }
-// }
 bool checkHeap(int *ar,int size)
 {
     for(int i = 0;i<size/2;i++)
