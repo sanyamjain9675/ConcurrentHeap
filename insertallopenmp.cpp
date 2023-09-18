@@ -5,7 +5,7 @@
 #include <cstdlib>
 
 //total size of the heap
-#define maxSize 10000
+#define maxSize 100000
 omp_lock_t lock[maxSize];
 
 bool checkHeap(int *ar,int size)
@@ -94,7 +94,10 @@ int main() {
     srand(time(0));
     int countvalid = 0;
     int inivalid = 0;
-    
+
+    for(int i = 0;i<maxSize;i++)
+        omp_init_lock(&(lock[i]));
+
     for(int lk = 0;lk<100;lk++)
     {
         int curSize;
@@ -123,8 +126,6 @@ int main() {
 
         double starttime = rtclock(); 
 
-        for(int i = 0;i<maxSize;i++)
-            omp_init_lock(&(lock[i]));
         /* Kernel starts*/
         int count = 0;int ind,childInd;
 
@@ -168,9 +169,6 @@ int main() {
         }
     
         /* Kernel ends*/
-        
-        for(int i = 0;i<maxSize;i++)
-            omp_destroy_lock(&(lock[i]));
 
         double endtime = rtclock();  
 
@@ -182,6 +180,10 @@ int main() {
         // printf("Heap after Insertion : ");
         // printArray(heap,curSize);
     }
+
+    for(int i = 0;i<maxSize;i++)
+            omp_destroy_lock(&(lock[i]));
+
     printf("\nInitial valid : %d",inivalid);
     printf("\nvalid : %d\n\n",countvalid);
     return 0;
