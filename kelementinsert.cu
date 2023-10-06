@@ -6,32 +6,32 @@
 #include <time.h>
 
 //total size of the heap
-#define maxSize 1000000
+#define maxSize 1000
 
 __global__ void Insert_Elem(volatile int *heap,int *d_elements,int *curSize,volatile int *lockArr,int *elemSize,int k){
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     if(tid < *elemSize)
     {
         int childInd = atomicInc((unsigned *) curSize,maxSize+10);
-	childInd = childInd*2;
+	    childInd = childInd*k;
         heap[childInd] = d_elements[tid*k];
-	heap[childInd] = d_elements[tid*k+1];
+	    heap[childInd] = d_elements[tid*k+1];
 	
 
         int parInd = ((childInd/k - 1)/2) * k;
         int oldval = 1;
         do
         {
-            oldval = atomicCAS((int*)&lockArr[parInd],0,1);
+            oldval = atomicCAS((int*)&lockArr[parInd/k],0,1);
             if(oldval == 0) //if we got the lock on parent
             {
                 if(heap[parInd] > heap[childInd])
                 {
-		    for(int i = 0;i<k;i++){
+		            for(int i = 0;i<k;i++){
                     	int temp = heap[parInd+i];    //swapping the elements
                     	heap[parInd+i] = heap[childInd+i];
                     	heap[childInd+i] = temp;
-		    }
+		            }
 
                     __threadfence();//necessary
 
@@ -158,7 +158,7 @@ int main() {
     srand(time(0));
     int countvalid = 0;
     int inivalid = 0;
-    int k = 1;
+    int k = 3;
     
     for(int lk = 0;lk<100;lk++)
     {
@@ -181,8 +181,8 @@ int main() {
        //check if satisfies the heap property
         if(checkHeap(h_a,*curSize,k)) inivalid++;
 
-        cudaMalloc(&d_a,maxSize*sizeof(int)); 
-        cudaMemcpy(d_a,h_a,maxSize * sizeof(int),cudaMemcpyHostToDevice);
+        cudaMalloc(&d_a,maxSize*k*sizeof(int)); 
+        cudaMemcpy(d_a,h_a,maxSize*k*sizeof(int),cudaMemcpyHostToDevice);
 
         *elemSize = getRandom(1,maxSize-*curSize-2);
         int elements[*elemSize*k];
