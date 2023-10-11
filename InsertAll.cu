@@ -6,7 +6,7 @@
 #include <time.h>
 
 //total size of the heap
-#define maxSize 1000000
+#define maxSize 1000
 
 __global__ void Insert_Elem(volatile int *heap,int *d_elements,int *curSize,volatile int *lockArr,int *elemSize){
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -16,41 +16,49 @@ __global__ void Insert_Elem(volatile int *heap,int *d_elements,int *curSize,vola
         heap[childInd] = d_elements[tid];
 
         int parInd = (childInd-1)/2;
-        int oldval = 1;
-        do
+
+        if(childInd == 0){
+            lockArr[childInd] = 0;
+        }
+
+        if(childInd != 0)
         {
-            oldval = atomicCAS((int*)&lockArr[parInd],0,1);
-            if(oldval == 0) //if we got the lock on parent
+            int oldval = 1;
+            do
             {
-                if(heap[parInd] > heap[childInd])
+                oldval = atomicCAS((int*)&lockArr[parInd],0,1);
+                if(oldval == 0) //if we got the lock on parent
                 {
-                    int temp = heap[parInd];    //swapping the elements
-                    heap[parInd] = heap[childInd];
-                    heap[childInd] = temp;
+                    if(heap[parInd] > heap[childInd])
+                    {
+                        int temp = heap[parInd];    //swapping the elements
+                        heap[parInd] = heap[childInd];
+                        heap[childInd] = temp;
 
-                    __threadfence();//necessary
+                        __threadfence();//necessary
 
-                    lockArr[childInd] = 0; //unlock the child
-    
-                    childInd = parInd;
-                    parInd = (childInd-1)/2;
-                    oldval = 1; //we need to heapify again
+                        lockArr[childInd] = 0; //unlock the child
+        
+                        childInd = parInd;
+                        parInd = (childInd-1)/2;
+                        oldval = 1; //we need to heapify again
 
-                    //if we have reached the root
-                    if(childInd == 0){
-                        oldval = 0; //we need not heapify again
+                        //if we have reached the root
+                        if(childInd == 0){
+                            oldval = 0; //we need not heapify again
+                            lockArr[childInd] = 0;
+                        }  
+                    }
+                    else //if heap property satisfied release the locks
+                    {
                         lockArr[childInd] = 0;
-                    }  
+                        lockArr[parInd] = 0;
+                    } 
+                    
                 }
-                else //if heap property satisfied release the locks
-                {
-                    lockArr[childInd] = 0;
-                    lockArr[parInd] = 0;
-                } 
-                
-            }
-            // __threadfence(); //doesnt seem necessary
-        }while(oldval != 0);
+                // __threadfence(); //doesnt seem necessary
+            }while(oldval != 0);
+        }
     }
 }
 bool checkHeap(int *ar,int size)
@@ -157,7 +165,8 @@ int main() {
         cudaHostAlloc(&elemSize, sizeof(int), 0);
 
         int h_a[maxSize];
-        *curSize = getRandom(1,maxSize/10);
+        // *curSize = getRandom(1,maxSize/10);
+        *curSize = 0;
 
         //Initialise Heap with some random values
         FillArray(h_a,*curSize);
