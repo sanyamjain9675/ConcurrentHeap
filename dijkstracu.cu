@@ -6,7 +6,7 @@
 #include <time.h>
 
 //total size of the heap
-#define maxSize 1000
+#define maxSize 100
 
 __global__ void Insert_Elem(volatile int *heap,int *d_elements,int *curSize,volatile int *lockArr,int *elemSize,int k){
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -217,7 +217,7 @@ int main() {
     int *d_elements;
     cudaHostAlloc(&d_elements, maxSize * sizeof(int),0);
 
-    int dist[V] = {1e9};
+    int dist[V] = {1000};
     dist[Source] = 0;
     *elemSize = 1;
     d_elements[0] = 0;
@@ -266,7 +266,10 @@ int main() {
             Insert_Elem<<<block,1024>>>(d_a,d_elements,curSize,lockArr,elemSize,k);
             cudaDeviceSynchronize();
         }
+        printArray(dist,V,k);
     }
+
+    
 
     return 0;
 }
