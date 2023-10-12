@@ -234,7 +234,7 @@ int main() {
     while(*curSize != 0)
     {
         int elem = d_a[1];
-        deleteRoot(d_a,*curSize,k); //call delete here
+        deleteRoot(d_a,curSize,k); //call delete here
         *elemSize = 0;
         // for(auto neigh : adj[elem])
         int start = pos[elem];
