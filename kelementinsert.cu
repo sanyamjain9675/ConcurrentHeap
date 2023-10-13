@@ -14,9 +14,8 @@ __global__ void Insert_Elem(volatile int *heap,int *d_elements,int *curSize,vola
     {
         int childInd = atomicInc((unsigned *) curSize,maxSize+10);
 	    childInd = childInd*k;
-        heap[childInd] = d_elements[tid*k];
-	    heap[childInd] = d_elements[tid*k+1];
-	
+        for(int i = 0;i<k;i++)
+            heap[childInd+i] = d_elements[tid*k+i];
 
         int parInd = ((childInd/k - 1)/2) * k;
         int oldval = 1;
@@ -82,8 +81,11 @@ int getRandom(int lower, int upper)
 }
 void printArray(int arr[],int size,int k)
 {
+    printf("\n");
     for(int i = 0;i<size;i++)
         printf("%d, ",arr[i]);
+    
+    printf("\n");
 }
 void FillArray(int elements[],int size,int k)
 {
@@ -158,9 +160,9 @@ int main() {
     srand(time(0));
     int countvalid = 0;
     int inivalid = 0;
-    int k = 3;
+    int k = 2;
     
-    for(int lk = 0;lk<100;lk++)
+    for(int lk = 0;lk<1;lk++)
     {
         int *d_a;
         int *curSize;
@@ -170,13 +172,14 @@ int main() {
         cudaHostAlloc(&elemSize, sizeof(int), 0);
 
         int h_a[maxSize*k];
-        *curSize = getRandom(1,maxSize/10);
+        *curSize = 1;
 
         //Initialise Heap with some random values
         FillArray(h_a,*curSize,k);
 
        //heapify the heap
         buildHeap(h_a,*curSize,k);
+        printArray(h_a,*curSize*k,k);
 
        //check if satisfies the heap property
         if(checkHeap(h_a,*curSize,k)) inivalid++;
@@ -184,12 +187,12 @@ int main() {
         cudaMalloc(&d_a,maxSize*k*sizeof(int)); 
         cudaMemcpy(d_a,h_a,maxSize*k*sizeof(int),cudaMemcpyHostToDevice);
 
-        *elemSize = getRandom(1,maxSize-*curSize-2);
+        *elemSize = 1;
         int elements[*elemSize*k];
         
         FillArray(elements,*elemSize,k);
         printf("%d. No of Inserted Elements are = %d\n",inivalid,*elemSize);
-
+        printArray(elements,*elemSize*k,k);
         int *d_elements;
         cudaMalloc(&d_elements,*elemSize*k*sizeof(int));
         cudaMemcpy(d_elements,elements,*elemSize * k* sizeof(int),cudaMemcpyHostToDevice);
@@ -206,6 +209,8 @@ int main() {
         double endtime = rtclock();  
         printtime("GPU Kernel time: ", starttime, endtime);
         cudaMemcpy(h_a,d_a,maxSize*k*sizeof(int),cudaMemcpyDeviceToHost);
+
+        printArray(h_a,*curSize*k,k);
         
         if(checkHeap(h_a,*curSize,k)) {
             // printf("Valid\n");
