@@ -4,7 +4,9 @@
 #include <bits/stdc++.h>
 #include <fstream>
 #include <time.h>
+#include <iostream>
 
+using namespace std;
 //total size of the heap
 #define maxSize 100
 
@@ -93,6 +95,8 @@ void printArray(int arr[],int size,int k)
 {
     for(int i = 0;i<size;i++)
         printf("%d, ",arr[i]);
+    
+    cout<<endl;
 }
 void FillArray(int elements[],int size,int k)
 {
@@ -217,7 +221,10 @@ int main() {
     int *d_elements;
     cudaHostAlloc(&d_elements, maxSize * sizeof(int),0);
 
-    int dist[V] = {1000};
+    int dist[V];
+    for(int i = 0;i<V;i++) dist[i] = 1000;
+    printArray(dist,V,k);
+
     dist[Source] = 0;
     *elemSize = 1;
     d_elements[0] = 0;
@@ -229,10 +236,11 @@ int main() {
     cudaDeviceSynchronize();
     Insert_Elem<<<block,1024>>>(d_a,d_elements,curSize,lockArr,elemSize,k);
     cudaDeviceSynchronize();
-
+    cout << *curSize<<endl;
         
     while(*curSize != 0)
     {
+        // printArray(d_a,*curSize*k,k);
         int elem = d_a[1];
         deleteRoot(d_a,curSize,k); //call delete here
         *elemSize = 0;
@@ -244,20 +252,21 @@ int main() {
         else
             end = wn;
 
+        cout << "elem = "<<elem<<", start = "<<start<<", end = "<<end<<endl;
         for(int i = start;i<end;i++)
         {
             int v = neigh[i];
             int wt = weight[i];
-
+            cout << "dist[elem] = "<<dist[elem]<<", wt = "<<wt<<", v = "<<v<<", dist[v] = "<<dist[v]<<endl;
             if(dist[elem] + wt < dist[v])
             {
                 dist[v] = dist[elem]+wt;
-                d_elements[*elemSize*2] = dist[elem]+wt;
+                d_elements[*elemSize*2] = dist[v];
                 d_elements[*elemSize*2 + 1] = v;
                 *elemSize = *elemSize + 1;
             }
         }
-        
+        printArray(d_elements,*elemSize*k,k);
         if(*elemSize != 0)
         {
             int block = ceil((float) *elemSize/1024);
@@ -266,10 +275,13 @@ int main() {
             Insert_Elem<<<block,1024>>>(d_a,d_elements,curSize,lockArr,elemSize,k);
             cudaDeviceSynchronize();
         }
+        // cout << *curSize<<endl;
+        printArray(d_a,*curSize*k,k);
         printArray(dist,V,k);
+        cout<<"............................................."<<endl;
+        
     }
 
-    
-
+    printArray(dist,V,k);
     return 0;
 }
