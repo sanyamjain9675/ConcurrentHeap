@@ -16,8 +16,8 @@ __global__ void Insert_Elem(volatile int *heap,int *d_elements,int *curSize,vola
     {
         int childInd = atomicInc((unsigned *) curSize,maxSize+10);
         childInd = childInd*k;
-        heap[childInd] = d_elements[tid*k];
-	    heap[childInd] = d_elements[tid*k+1];
+        for(int i = 0;i<k;i++)
+            heap[childInd+i] = d_elements[tid*k+i];
 
         int parInd = ((childInd/k - 1)/2) * k;
 
