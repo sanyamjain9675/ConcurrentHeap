@@ -24,21 +24,21 @@ void printtime(const char *str, double starttime, double endtime){
 
 int main(void)
 {
-    // thrust::host_vector<int> h_vec(1000000);
-    vector <int> h_vec(1000000)
+    thrust::host_vector<int> h_vec(1000000);
+    // vector <int> h_vec(1000000)
     std::generate(h_vec.begin(), h_vec.end(), rand);
 
-    // thrust::device_vector<int> d_vec = h_vec;
+    thrust::device_vector<int> d_vec = h_vec;
     
     double starttime = rtclock(); 
     std::sort(h_vec.begin(), h_vec.end());
     double endtime = rtclock();  
     printtime("Serial Sorting time: ", starttime, endtime);
 
-    // starttime = rtclock(); 
-    // thrust::sort(d_vec.begin(), d_vec.end());
-    // endtime = rtclock();  
-    // printtime("Parallel Sorting time: ", starttime, endtime);
+    starttime = rtclock(); 
+    thrust::sort(d_vec.begin(), d_vec.end());
+    endtime = rtclock();  
+    printtime("Parallel Sorting time: ", starttime, endtime);
 
     return 0;
 }
