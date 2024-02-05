@@ -6,7 +6,7 @@
     #include <iostream>
 
     //total size of the heap
-    #define maxSize 1000000
+    #define maxSize 100000
 
     __global__ void Insert_Elem(int *heap,int *d_elements,int *curSize,int *elemSize,int k){
         int tid = blockIdx.x * blockDim.x + threadIdx.x;
