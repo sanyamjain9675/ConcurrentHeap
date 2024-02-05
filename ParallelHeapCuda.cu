@@ -6,7 +6,7 @@
     #include <iostream>
 
     //total size of the heap
-    #define maxSize 100000000
+    #define maxSize 10000000
 
     __global__ void Insert_Elem(int *heap,int *d_elements,int *curSize,int *elemSize,int k){
         int tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -169,7 +169,7 @@
     int main() {
         srand(time(0));
         int countvalid = 0,newValid = 0,inivalid = 0,k = 1;
-        int *d_a,*curSize,*lockArr,*elemSize,*serHeap,*serHeap;
+        int *d_a,*curSize,*lockArr,*elemSize,*serSize,*serHeap;
 
         cudaHostAlloc(&curSize, sizeof(int), 0);
         cudaHostAlloc(&elemSize, sizeof(int), 0);
