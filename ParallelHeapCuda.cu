@@ -4,42 +4,36 @@
     #include <fstream>
     #include <time.h>
     #include <iostream>
+    #include <thrust/host_vector.h>
+    #include <thrust/device_vector.h>
+    #include <thrust/sort.h>
 
+    using namespace std;
     //total size of the heap
-    #define maxSize 100000
+    #define maxSize 1000000
 
-    __global__ void Insert_Elem(int *heap,int *d_elements,int *curSize,int *elemSize,int k){
+    __global__ void Insert_Elem(int *heap,int *d_elements,int *curSize,int *elemSize){
         int tid = blockIdx.x * blockDim.x + threadIdx.x;
         if(tid < *elemSize)
         {
             heap[tid + *curSize] = d_elements[tid];
         }
+    }
+
+    void deleteElem(int *heap,int *curSize){
+        //wrap raw pointer with a device_ptr
+        thrust::device_ptr<int> d_vec(heap);
+        //use device_ptr in thrust algorithms
+        thrust::sort(d_vec, d_vec+*curSize);
+        // cout << endl<<"Array after sorting"<<endl;
+        // for(int i = 0;i<*curSize;i++){
+        //     cout << d_vec[i] << " ";
+        // }
+        // cout << endl;
     }
 
     __global__ void delete_Elem(int *heap,int *d_elements,int *curSize,int *elemSize,int k){
-        int tid = blockIdx.x * blockDim.x + threadIdx.x;
-        if(tid < *elemSize)
-        {
-            heap[tid + *curSize] = d_elements[tid];
-        }
-    }
-
-    bool checkHeap(int *ar,int size,int k)
-    {
-        for(int i = 0;i<size/2;i+=k)
-        {
-            if(ar[i] > ar[2*i + k]){
-                printf("\nproblem found at index parent = %d,child = %d\n",i,2*i + k);
-                printf("problem found at index parentval = %d,childval = %d\n",ar[i],ar[2*i + k]); 
-                return false;
-            } 
-            if((2*i + 2) < size && ar[i] > ar[2*i + 2*k]){
-                printf("\nproblem found at index parent = %d,child = %d\n",i,2*i + 2*k);
-                printf("problem found at index parentval = %d,childval = %d\n",ar[i],ar[2*i + 2*k]);
-                return false;
-            }
-        }
-        return true;
+       
     }
 
     int getRandom(int lower, int upper)
@@ -48,110 +42,19 @@
         return num;  
     }
 
-    void printArray(int arr[],int size,int k)
+    void printArray(int arr[],int size)
     {
-        printf("\n");
         for(int i = 0;i<size;i++)
             printf("%d, ",arr[i]);
-        
-        printf("\n");
     }
 
-    void FillArray(int elements[],int size,int k)
+    void FillArray(int elements[],int size)
     {
-        for(int i = 0;i<size*k;i++)
+        for(int i = 0;i<size;i++)
         {
-            elements[i] = getRandom(1,1000);
+            elements[i] = getRandom(1,maxSize*10);
         }
     }
-        
-    void heapify(int hp[],int ind,int size,int k)
-    {
-        while(1)
-        {
-            int leftChild = 2*ind+k;
-            int rightChild = 2*ind+2*k;
-            int largeInd = -1;
-            if(rightChild < size*k && hp[ind] > hp[rightChild]){
-                if(hp[leftChild] < hp[rightChild])
-                    largeInd = leftChild;
-                else
-                    largeInd = rightChild;
-            }
-            else if(leftChild < size*k && hp[ind] > hp[leftChild]){
-                largeInd = leftChild;
-            }
-            
-            if(largeInd == -1)  return;
-        
-            
-
-        for(int i = 0;i<k;i++){
-            int temp = hp[ind+i];
-                hp[ind+i] = hp[largeInd+i];
-                hp[largeInd+i] = temp;
-        }
-
-        ind = largeInd;
-            
-        }
-
-    }
-
-    void buildHeap(int hp[],int n,int k)
-    {
-        for(int i = n/2 -1 ; i>=0;i--)
-        {
-            heapify(hp,i*k,n,k);
-        }
-    }
-
-    __global__ void setLockVar(int *curSize,int *lockArr,int *elemSize)
-    {
-        int tid = blockIdx.x * blockDim.x + threadIdx.x;
-        if(tid < *elemSize)
-            lockArr[tid + *curSize] = 1;
-    }
-
-    __device__ void heapifyBUP(int arr[], int n, int childInd, int k) {
-        // Find parent 
-        int parInd = ((childInd/k - 1)/2) * k;
-        if (parInd >= 0) { 
-            if (arr[childInd] < arr[parInd]) { 
-                for(int i = 0;i<k;i++){
-                    int temp = arr[parInd+i];
-                    arr[parInd+i] = arr[childInd+i];
-                    arr[childInd+i] = temp;
-                }
-                heapifyBUP(arr, n, parInd,k); 
-            } 
-        } 
-    }
-
-    __device__ void insertNode(int arr[],  int *n,int val,int k)
-    {
-        // Increase the size of Heap by 2
-        *n = *n + 1;
-        int childInd = *n * k;
-    
-        // Insert the element at end of Heap
-        // arr[childInd - 2] = Key;
-        arr[childInd - 1] = val;
-    
-        // Heapify the new node following a
-        // Bottom-up approach
-        heapifyBUP(arr, *n,childInd-k,k);
-    }
-
-    //(serHeap,*serSize,*elements,*elemSize);
-    __global__ void insertNodeHelper(int *arr,int *size,int *elements,int *elemSize)
-    {
-        int k = 1;
-        for(int i = 0;i<*elemSize;i++){
-            insertNode(arr,size,elements[i],k);
-        }
-    }
-
 
     double rtclock(){
         struct timezone Tzp;
@@ -168,85 +71,50 @@
 
     int main() {
         srand(time(0));
-        int countvalid = 0,newValid = 0,inivalid = 0,k = 1;
-        int *d_a,*curSize,*lockArr,*elemSize,*serSize,*serHeap;
+        int *heap,*curSize,*elemSize;
 
         cudaHostAlloc(&curSize, sizeof(int), 0);
         cudaHostAlloc(&elemSize, sizeof(int), 0);
-        cudaHostAlloc(&serSize, sizeof(int), 0);
 
-        int newHeap[maxSize*k];
-        int h_a[maxSize*k];
+        int h_a[maxSize];
+        *curSize = 0;
 
-        *curSize = getRandom(1,maxSize/10);
-        *serSize = *curSize;
+        cudaMalloc(&heap,maxSize*sizeof(int)); 
+        cudaMemcpy(heap,h_a,maxSize * sizeof(int),cudaMemcpyHostToDevice);
 
-        //Initialise Heap with some random values
-        FillArray(h_a,*curSize,k);
-
-        //heapify the heap
-        //buildHeap(h_a,*curSize,k);
-
-        //check if satisfies the heap property
-        //if(checkHeap(h_a,*curSize,k)) inivalid++;
-
-        cudaMalloc(&d_a,maxSize*sizeof(int)); 
-        cudaMalloc(&serHeap,maxSize*sizeof(int)); 
-
-        cudaMemcpy(d_a,h_a,maxSize * sizeof(int),cudaMemcpyHostToDevice);
-        cudaMemcpy(serHeap,h_a,maxSize * sizeof(int),cudaMemcpyHostToDevice);
-
-        for(int lk = 0;lk<10;lk++)
+        for(int lk = 0;lk<5;lk++)
         {
             do{
-                *elemSize = getRandom(1,maxSize-*curSize-2);
+                *elemSize = getRandom(1,maxSize-*curSize);
             }while(*elemSize + *curSize > maxSize);
             
-            int elements[*elemSize*k];
+            int elements[*elemSize];
             
-            FillArray(elements,*elemSize,k);
+            FillArray(elements,*elemSize);
 
-            printf("%d. No of Inserted Elements are = %d\n",inivalid,*elemSize);
+            printf("No of Inserted Elements are = %d\n",*elemSize);
 
             int *d_elements;
-            cudaMalloc(&d_elements,*elemSize*k*sizeof(int));
-            cudaMemcpy(d_elements,elements,*elemSize * k* sizeof(int),cudaMemcpyHostToDevice);
-            // cudaMalloc(&lockArr,(*elemSize + *curSize)*sizeof(int));
-            // cudaMemset(lockArr,0,(*elemSize + *curSize)*sizeof(int));
-        
-            int block = ceil((float) *elemSize/1024);
+            cudaMalloc(&d_elements,*elemSize*sizeof(int));
+            cudaMemcpy(d_elements,elements,*elemSize * sizeof(int),cudaMemcpyHostToDevice);
 
             double starttime = rtclock(); 
-            // setLockVar<<<block,1024>>>(curSize,lockArr,elemSize);
-            // cudaDeviceSynchronize();
-            Insert_Elem<<<block,1024>>>(d_a,d_elements,curSize,elemSize,k);
+
+            int block = ceil((float) *elemSize/1024);
+            Insert_Elem<<<block,1024>>>(heap,d_elements,curSize,elemSize);
             cudaDeviceSynchronize();
-            double endtime = rtclock();  
-            printtime("GPU Kernel time: ", starttime, endtime);
+            double endtime = rtclock();
+            *curSize = *curSize + *elemSize;  
+            printtime("Insertion time: ", starttime, endtime); 
 
-            // starttime = rtclock();
-            // insertNodeHelper<<<1,1>>>(serHeap,serSize,d_elements,elemSize);
-            // cudaDeviceSynchronize();
-            // endtime = rtclock();
-            // printtime("GPU (1 thread time)Kernel time: ", starttime, endtime);
-            
-            cudaMemcpy(h_a,d_a,maxSize*k*sizeof(int),cudaMemcpyDeviceToHost);
-            //cudaMemcpy(newHeap,serHeap,maxSize*k*sizeof(int),cudaMemcpyDeviceToHost);
-            // if(checkHeap(h_a,*curSize,k)) {
-            //     // printf("Valid\n");
-            //     countvalid++;
-            // }
 
-            // if(checkHeap(newHeap,*serSize,k)) {
-            //     // printf("Valid\n");
-            //     newValid++;
-            // }
-            
+            starttime = rtclock();
+            deleteElem(heap,curSize);
+            endtime = rtclock();
+            printtime("Sorting: ", starttime, endtime);
+            cout << endl;
         }
 
-        // printf("\nInitial valid : %d",inivalid);
-        // printf("\nSingle Thread : %d",newValid);
-        // printf("\nMulti Thread  : %d",countvalid);
         printf( " Over ");
         return 0;
     }
